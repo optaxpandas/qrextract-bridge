@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -6,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { FileUp, Table as TableIcon, Download, FileJson, FileSpreadsheet, ClipboardCopy, Loader2 } from 'lucide-react';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 const TableExtraction: React.FC = () => {
   const navigate = useNavigate();
@@ -17,7 +16,6 @@ const TableExtraction: React.FC = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
   useEffect(() => {
-    // Check if user is logged in
     const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
     
     if (!isLoggedIn) {
@@ -40,7 +38,6 @@ const TableExtraction: React.FC = () => {
     setUploadedFile(file);
     setExtractedData(null);
 
-    // Simulate upload process
     setTimeout(() => {
       setIsUploading(false);
       toast.success('File uploaded successfully!');
@@ -56,9 +53,7 @@ const TableExtraction: React.FC = () => {
     
     setIsExtracting(true);
     
-    // Simulate extraction process
     setTimeout(() => {
-      // Sample extracted table data
       const data = [
         { id: 1, product: 'Laptop', price: '$1299', stock: 45 },
         { id: 2, product: 'Smartphone', price: '$899', stock: 120 },
@@ -92,10 +87,8 @@ const TableExtraction: React.FC = () => {
   const downloadCSV = () => {
     if (!extractedData || extractedData.length === 0) return;
     
-    // Get headers
     const headers = Object.keys(extractedData[0]);
     
-    // Create CSV content
     let csvContent = headers.join(',') + '\n';
     
     extractedData.forEach(row => {
@@ -116,6 +109,12 @@ const TableExtraction: React.FC = () => {
     linkElement.click();
     
     toast.success('CSV file downloaded!');
+  };
+
+  const copyToClipboard = () => {
+    if (!extractedData) return;
+    navigator.clipboard.writeText(JSON.stringify(extractedData, null, 2));
+    toast.success('Copied to clipboard!');
   };
 
   return (
@@ -248,7 +247,7 @@ const TableExtraction: React.FC = () => {
                   </Table>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <Button size="sm" variant="outline" onClick={() => toast.success('Copied to clipboard!')}>
+                  <Button size="sm" variant="outline" onClick={copyToClipboard}>
                     <ClipboardCopy size={16} className="mr-2" />
                     Copy Table
                   </Button>

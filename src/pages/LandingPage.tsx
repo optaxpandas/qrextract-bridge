@@ -3,6 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import Navbar from '@/components/Navbar';
+import Logo from '@/components/Logo';
 import { ArrowRight, QrCode, Table } from 'lucide-react';
 
 const LandingPage: React.FC = () => {

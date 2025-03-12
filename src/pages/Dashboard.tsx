@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import FeatureCard from '@/components/FeatureCard';
 import { QrCode, Table } from 'lucide-react';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -66,7 +65,6 @@ const Dashboard: React.FC = () => {
               description="Scan and analyze QR codes. Extract information and interpret the data."
               to="/qr-scanner"
               className="animate-scale-in"
-              style={{ animationDelay: '0.1s' }}
             />
             
             <FeatureCard
@@ -75,7 +73,6 @@ const Dashboard: React.FC = () => {
               description="Extract tables from images or documents and convert them to structured data."
               to="/table-extraction"
               className="animate-scale-in"
-              style={{ animationDelay: '0.2s' }}
             />
           </div>
         </div>

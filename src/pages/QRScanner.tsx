@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -6,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Camera, FileUp, Link as LinkIcon, ClipboardCopy, Download, Loader2 } from 'lucide-react';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 const QRScanner: React.FC = () => {
   const navigate = useNavigate();
@@ -17,7 +16,6 @@ const QRScanner: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Check if user is logged in
     const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
     
     if (!isLoggedIn) {
@@ -39,7 +37,6 @@ const QRScanner: React.FC = () => {
     setIsScanning(true);
     setScannedData(null);
 
-    // Simulate scanning process
     setTimeout(() => {
       setIsScanning(false);
       setScannedData('https://example.com/product-123456');
@@ -55,7 +52,6 @@ const QRScanner: React.FC = () => {
     setIsScanning(true);
     setScannedData(null);
 
-    // Simulate camera scanning
     setTimeout(() => {
       setIsScanning(false);
       setScannedData('https://example.com/qr-scanner-demo');
@@ -68,7 +64,6 @@ const QRScanner: React.FC = () => {
     
     setIsAnalyzing(true);
     
-    // Simulate analysis with backend
     setTimeout(() => {
       setIsAnalyzing(false);
       toast.success('Data analyzed successfully!');
