@@ -7,11 +7,18 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { FileUp, Table as TableIcon, Download, FileJson, FileSpreadsheet, ClipboardCopy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+interface TableData {
+  id: number;
+  product: string;
+  price: string;
+  stock: number;
+}
+
 const TableExtraction: React.FC = () => {
   const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
-  const [extractedData, setExtractedData] = useState<any[] | null>(null);
+  const [extractedData, setExtractedData] = useState<TableData[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
@@ -54,7 +61,7 @@ const TableExtraction: React.FC = () => {
     setIsExtracting(true);
     
     setTimeout(() => {
-      const data = [
+      const data: TableData[] = [
         { id: 1, product: 'Laptop', price: '$1299', stock: 45 },
         { id: 2, product: 'Smartphone', price: '$899', stock: 120 },
         { id: 3, product: 'Headphones', price: '$199', stock: 78 },
@@ -239,7 +246,7 @@ const TableExtraction: React.FC = () => {
                       {extractedData.map((row, index) => (
                         <TableRow key={index}>
                           {Object.values(row).map((value, i) => (
-                            <TableCell key={i}>{value}</TableCell>
+                            <TableCell key={i}>{String(value)}</TableCell>
                           ))}
                         </TableRow>
                       ))}
