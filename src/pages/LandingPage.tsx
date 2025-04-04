@@ -103,7 +103,7 @@ const LandingPage: React.FC = () => {
             </Link>
           </div>
           <p className="text-muted-foreground text-sm">
-            © 2023 QRExtract. All rights reserved.
+            © 2023 Scanlytic. All rights reserved.
           </p>
         </div>
       </footer>
