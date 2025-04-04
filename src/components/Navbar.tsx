@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Logo from './Logo';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, X, QrCode, Table, Home } from 'lucide-react';
 
 type NavbarProps = {
   isLoggedIn?: boolean;
@@ -18,6 +18,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -29,6 +30,11 @@ const Navbar: React.FC<NavbarProps> = ({
       window.removeEventListener('scroll', handleScroll);
     };
   }, []);
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location]);
 
   const handleLogout = () => {
     onLogout();
@@ -50,14 +56,48 @@ const Navbar: React.FC<NavbarProps> = ({
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-6">
           {isLoggedIn ? (
-            <Button 
-              variant="ghost" 
-              className="flex items-center gap-2" 
-              onClick={handleLogout}
-            >
-              <LogOut size={18} />
-              <span>Log Out</span>
-            </Button>
+            <>
+              {/* Navigation Links */}
+              <div className="flex items-center mr-4 space-x-1">
+                <Link to="/dashboard">
+                  <Button variant="ghost" className={cn(
+                    "flex items-center gap-2",
+                    location.pathname === '/dashboard' && "bg-primary/10 text-primary"
+                  )}>
+                    <Home size={18} />
+                    <span>Dashboard</span>
+                  </Button>
+                </Link>
+                <Link to="/qr-scanner">
+                  <Button variant="ghost" className={cn(
+                    "flex items-center gap-2",
+                    location.pathname === '/qr-scanner' && "bg-primary/10 text-primary"
+                  )}>
+                    <QrCode size={18} />
+                    <span>QR Scanner</span>
+                  </Button>
+                </Link>
+                <Link to="/table-extraction">
+                  <Button variant="ghost" className={cn(
+                    "flex items-center gap-2",
+                    location.pathname === '/table-extraction' && "bg-primary/10 text-primary"
+                  )}>
+                    <Table size={18} />
+                    <span>Table Extraction</span>
+                  </Button>
+                </Link>
+              </div>
+              
+              {/* Logout Button */}
+              <Button 
+                variant="ghost" 
+                className="flex items-center gap-2" 
+                onClick={handleLogout}
+              >
+                <LogOut size={18} />
+                <span>Log Out</span>
+              </Button>
+            </>
           ) : (
             <>
               <Link to="/login">
@@ -85,14 +125,52 @@ const Navbar: React.FC<NavbarProps> = ({
       {mobileMenuOpen && (
         <div className="md:hidden absolute top-full left-0 right-0 bg-white/90 backdrop-blur-lg shadow-md p-4 flex flex-col gap-3 animate-slide-down">
           {isLoggedIn ? (
-            <Button 
-              variant="ghost" 
-              className="flex items-center justify-center gap-2 w-full" 
-              onClick={handleLogout}
-            >
-              <LogOut size={18} />
-              <span>Log Out</span>
-            </Button>
+            <>
+              <Link to="/dashboard" className="w-full">
+                <Button 
+                  variant="ghost" 
+                  className={cn(
+                    "flex items-center justify-start gap-2 w-full",
+                    location.pathname === '/dashboard' && "bg-primary/10 text-primary"
+                  )}
+                >
+                  <Home size={18} />
+                  <span>Dashboard</span>
+                </Button>
+              </Link>
+              <Link to="/qr-scanner" className="w-full">
+                <Button 
+                  variant="ghost" 
+                  className={cn(
+                    "flex items-center justify-start gap-2 w-full",
+                    location.pathname === '/qr-scanner' && "bg-primary/10 text-primary"
+                  )}
+                >
+                  <QrCode size={18} />
+                  <span>QR Scanner</span>
+                </Button>
+              </Link>
+              <Link to="/table-extraction" className="w-full">
+                <Button 
+                  variant="ghost" 
+                  className={cn(
+                    "flex items-center justify-start gap-2 w-full",
+                    location.pathname === '/table-extraction' && "bg-primary/10 text-primary"
+                  )}
+                >
+                  <Table size={18} />
+                  <span>Table Extraction</span>
+                </Button>
+              </Link>
+              <Button 
+                variant="ghost" 
+                className="flex items-center justify-start gap-2 w-full mt-2 border-t pt-2" 
+                onClick={handleLogout}
+              >
+                <LogOut size={18} />
+                <span>Log Out</span>
+              </Button>
+            </>
           ) : (
             <>
               <Link to="/login" className="w-full">
