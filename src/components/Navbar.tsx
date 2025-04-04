@@ -4,7 +4,16 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Logo from './Logo';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { LogOut, Menu, X, QrCode, Table, Home } from 'lucide-react';
+import { LogOut, Menu, X, QrCode, Table, Home, Settings, User } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 type NavbarProps = {
   isLoggedIn?: boolean;
@@ -39,6 +48,11 @@ const Navbar: React.FC<NavbarProps> = ({
   const handleLogout = () => {
     onLogout();
     navigate('/login');
+  };
+
+  const navigateToSettings = (path: string) => {
+    navigate(path);
+    setMobileMenuOpen(false);
   };
 
   return (
@@ -88,15 +102,35 @@ const Navbar: React.FC<NavbarProps> = ({
                 </Link>
               </div>
               
-              {/* Logout Button */}
-              <Button 
-                variant="ghost" 
-                className="flex items-center gap-2" 
-                onClick={handleLogout}
-              >
-                <LogOut size={18} />
-                <span>Log Out</span>
-              </Button>
+              {/* Profile Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative rounded-full h-10 w-10 p-0">
+                    <Avatar>
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        <User size={20} />
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigateToSettings('/profile')}>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigateToSettings('/settings')}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log Out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>
@@ -162,6 +196,22 @@ const Navbar: React.FC<NavbarProps> = ({
                   <span>Table Extraction</span>
                 </Button>
               </Link>
+              <Button 
+                variant="ghost" 
+                className="flex items-center justify-start gap-2 w-full" 
+                onClick={() => navigateToSettings('/profile')}
+              >
+                <User size={18} />
+                <span>Profile</span>
+              </Button>
+              <Button 
+                variant="ghost" 
+                className="flex items-center justify-start gap-2 w-full" 
+                onClick={() => navigateToSettings('/settings')}
+              >
+                <Settings size={18} />
+                <span>Settings</span>
+              </Button>
               <Button 
                 variant="ghost" 
                 className="flex items-center justify-start gap-2 w-full mt-2 border-t pt-2" 
