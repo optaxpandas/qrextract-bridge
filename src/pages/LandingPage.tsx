@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -103,7 +102,7 @@ const LandingPage: React.FC = () => {
             </Link>
           </div>
           <p className="text-muted-foreground text-sm">
-            © 2023 Scanlytic. All rights reserved.
+            © 2025 Scanlytic. All rights reserved.
           </p>
         </div>
       </footer>
