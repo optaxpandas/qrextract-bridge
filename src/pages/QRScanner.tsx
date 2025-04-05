@@ -23,6 +23,7 @@ const QRScanner: React.FC = () => {
   const codeReader = useRef(new BrowserQRCodeReader());
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
@@ -53,6 +54,7 @@ const QRScanner: React.FC = () => {
 
     setIsScanning(true);
     setScannedData(null);
+    setCapturedImage(null);
 
     try {
       const imageElement = document.createElement('img');
@@ -65,6 +67,7 @@ const QRScanner: React.FC = () => {
       const result = await codeReader.current.decodeFromImageElement(imageElement);
       const data = result.getText();
       setScannedData(data);
+      setCapturedImage(imageElement.src);
       toast.success('QR code scanned successfully!');
     } catch (error) {
       console.error('Error scanning QR code:', error);
@@ -78,9 +81,30 @@ const QRScanner: React.FC = () => {
     fileInputRef.current?.click();
   };
 
+  const captureVideoFrame = () => {
+    if (!videoRef.current) return;
+    
+    // Create a canvas element to capture the frame
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    
+    // Draw the current video frame to the canvas
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      
+      // Convert canvas to data URL (base64 encoded image)
+      const imageDataUrl = canvas.toDataURL('image/jpeg');
+      setCapturedImage(imageDataUrl);
+      toast.success('QR code image captured!');
+    }
+  };
+
   const startCameraScanning = async () => {
     setIsScanning(true);
     setScannedData(null);
+    setCapturedImage(null);
     
     try {
       // First check if we already have permission
@@ -162,6 +186,18 @@ const QRScanner: React.FC = () => {
             if (result) {
               const data = result.getText();
               setScannedData(data);
+              
+              // Attempt to capture frame from the temp video
+              const canvas = document.createElement('canvas');
+              canvas.width = tempVideo.videoWidth;
+              canvas.height = tempVideo.videoHeight;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+                const imageDataUrl = canvas.toDataURL('image/jpeg');
+                setCapturedImage(imageDataUrl);
+              }
+              
               toast.success('QR code scanned successfully!');
             }
             if (error && !(error instanceof NotFoundException)) {
@@ -192,6 +228,12 @@ const QRScanner: React.FC = () => {
             if (result) {
               const data = result.getText();
               setScannedData(data);
+              
+              // Capture frame when QR code is detected if not already captured
+              if (videoRef.current && !capturedImage) {
+                captureVideoFrame();
+              }
+              
               toast.success('QR code scanned successfully!');
               // Don't stop scanning automatically
             }
@@ -279,7 +321,8 @@ const QRScanner: React.FC = () => {
         body: JSON.stringify({
           data: scannedData,
           timestamp: new Date().toISOString(),
-          device_info: navigator.userAgent
+          device_info: navigator.userAgent,
+          image: capturedImage // Including the captured image
         }),
       });
       
@@ -288,7 +331,7 @@ const QRScanner: React.FC = () => {
       }
       
       const result = await response.json();
-      toast.success('Data sent to backend successfully!');
+      toast.success('Data and image sent to backend successfully!');
       console.log('Backend response:', result);
     } catch (error) {
       console.error('Error sending data to backend:', error);
@@ -449,6 +492,29 @@ const QRScanner: React.FC = () => {
                   <div className="bg-muted/50 p-4 rounded-lg break-all mb-4">
                     <p className="font-mono">{scannedData}</p>
                   </div>
+                  
+                  {capturedImage && (
+                    <div className="mt-4 mb-4">
+                      <h3 className="text-sm font-medium mb-2">Captured QR Image:</h3>
+                      <div className="border rounded-md overflow-hidden max-w-xs">
+                        <img src={capturedImage} alt="Captured QR code" className="w-full" />
+                      </div>
+                      {cameraActive && (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => {
+                            setCapturedImage(null);
+                            toast.info('Ready to capture new QR image');
+                          }}
+                          className="mt-2"
+                        >
+                          Retake Picture
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  
                   <div className="flex flex-wrap gap-3">
                     <Button size="sm" variant="outline" onClick={copyToClipboard}>
                       <ClipboardCopy size={16} className="mr-2" />
@@ -479,14 +545,14 @@ const QRScanner: React.FC = () => {
                           Analyzing...
                         </>
                       ) : (
-                        <>Analyze Data</>
+                        <>Initial Analysis</>
                       )}
                     </Button>
                     <Button 
                       size="sm" 
                       variant="secondary"
                       onClick={sendToBackend}
-                      disabled={isSending}
+                      disabled={isSending || !capturedImage}
                     >
                       {isSending ? (
                         <>
@@ -494,7 +560,7 @@ const QRScanner: React.FC = () => {
                           Sending...
                         </>
                       ) : (
-                        <>Send to Backend</>
+                        <>Send for Deep Analysis</>
                       )}
                     </Button>
                   </div>
