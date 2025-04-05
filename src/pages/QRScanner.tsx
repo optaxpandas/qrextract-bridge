@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -33,11 +34,7 @@ const QRScanner: React.FC = () => {
   useEffect(() => {
     return () => {
       if (cameraActive) {
-        codeReader.current.reset();
-        if (videoRef.current && videoRef.current.srcObject) {
-          const stream = videoRef.current.srcObject as MediaStream;
-          stream.getTracks().forEach(track => track.stop());
-        }
+        stopCameraScanning();
       }
     };
   }, [cameraActive]);
@@ -85,7 +82,7 @@ const QRScanner: React.FC = () => {
     try {
       if (hasPermission === null) {
         try {
-          await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          await navigator.mediaDevices.getUserMedia({ video: true });
           setHasPermission(true);
         } catch (err) {
           setHasPermission(false);
@@ -101,22 +98,45 @@ const QRScanner: React.FC = () => {
         return;
       }
       
+      // Get available cameras
       const videoInputDevices = await codeReader.current.getVideoInputDevices();
+      console.log('Available cameras:', videoInputDevices);
+      
       if (videoInputDevices.length === 0) {
         toast.error('No camera found on this device');
         setIsScanning(false);
         return;
       }
       
+      // Prefer environment/back camera if available
       let selectedDeviceId = videoInputDevices[0].deviceId;
       const envCamera = videoInputDevices.find(device => 
         device.label.toLowerCase().includes('back') || 
         device.label.toLowerCase().includes('environment')
       );
+      
       if (envCamera) {
         selectedDeviceId = envCamera.deviceId;
       }
       
+      console.log('Using camera device ID:', selectedDeviceId);
+      
+      // Reset previous instances
+      if (cameraActive) {
+        stopCameraScanning();
+      }
+
+      // Access camera directly first to ensure video element gets populated
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined } 
+      });
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(err => console.error('Error playing video:', err));
+      }
+      
+      // Start QR code detection
       await codeReader.current.decodeFromVideoDevice(
         selectedDeviceId,
         videoRef.current!, 
@@ -127,16 +147,16 @@ const QRScanner: React.FC = () => {
             stopCameraScanning();
           }
           if (error && !(error instanceof NotFoundException)) {
-            console.error(error);
+            console.error('QR scan error:', error);
           }
         }
       );
       
       setCameraActive(true);
+      setIsScanning(false);
     } catch (error) {
       console.error('Error starting camera:', error);
       toast.error('Failed to start camera. Please try again.');
-    } finally {
       setIsScanning(false);
     }
   };
@@ -147,6 +167,7 @@ const QRScanner: React.FC = () => {
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
       }
       setCameraActive(false);
     }
@@ -229,8 +250,8 @@ const QRScanner: React.FC = () => {
                         ref={videoRef} 
                         className="w-full h-full object-cover"
                         autoPlay
-                        muted
                         playsInline
+                        muted
                       />
                     ) : scannedData ? (
                       <div className="text-center p-6">
