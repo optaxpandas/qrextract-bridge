@@ -83,6 +83,7 @@ const QRScanner: React.FC = () => {
     setScannedData(null);
     
     try {
+      // First check if we already have permission
       if (hasPermission === null) {
         try {
           await navigator.mediaDevices.getUserMedia({ video: true });
@@ -101,75 +102,112 @@ const QRScanner: React.FC = () => {
         return;
       }
       
-      const videoInputDevices = await codeReader.current.getVideoInputDevices();
-      console.log('Available cameras:', videoInputDevices);
-      
-      if (videoInputDevices.length === 0) {
-        toast.error('No camera found on this device');
-        setIsScanning(false);
-        return;
-      }
-      
-      let selectedDeviceId = videoInputDevices[0].deviceId;
-      const envCamera = videoInputDevices.find(device => 
-        device.label.toLowerCase().includes('back') || 
-        device.label.toLowerCase().includes('environment')
-      );
-      
-      if (envCamera) {
-        selectedDeviceId = envCamera.deviceId;
-      }
-      
-      console.log('Using camera device ID:', selectedDeviceId);
-      
+      // Stop existing camera if active
       if (cameraActive) {
         stopCameraScanning();
       }
 
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
-        videoRef.current.srcObject = null;
+      // Get available cameras
+      let videoDevices = [];
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        videoDevices = devices.filter(device => device.kind === 'videoinput');
+        console.log('Available cameras:', videoDevices);
+      } catch (err) {
+        console.error('Error getting video devices:', err);
+        // Continue with default camera
       }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined } 
-      });
       
+      if (videoDevices.length === 0) {
+        console.warn('No cameras detected via enumerateDevices, trying default camera');
+      }
+      
+      // Get camera stream directly without ZXing's method
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: "environment" } 
+        });
+      } catch (err) {
+        console.error('Failed to access environment camera, trying default:', err);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        } catch (err2) {
+          console.error('Failed to access any camera:', err2);
+          toast.error('Could not access camera. Please check camera permissions.');
+          setIsScanning(false);
+          return;
+        }
+      }
+      
+      // Allow time for the DOM to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Try to attach stream to video element
       if (!videoRef.current) {
-        console.error('Video element reference is still not available');
-        throw new Error('Video element reference is not available');
+        console.warn('Video element reference is not available, using fallback');
+        
+        // Fallback solution with a programmatically created video element
+        const tempVideo = document.createElement('video');
+        tempVideo.autoplay = true;
+        tempVideo.playsInline = true;
+        tempVideo.muted = true;
+        tempVideo.srcObject = stream;
+        
+        try {
+          await tempVideo.play();
+          
+          // Use the temp video for QR scanning
+          codeReader.current.decodeFromVideoElement(tempVideo, (result, error) => {
+            if (result) {
+              const data = result.getText();
+              setScannedData(data);
+              toast.success('QR code scanned successfully!');
+            }
+            if (error && !(error instanceof NotFoundException)) {
+              console.error('QR scan error:', error);
+            }
+          });
+          
+          setCameraActive(true);
+          setIsScanning(false);
+          return;
+        } catch (err) {
+          console.error('Fallback video failed:', err);
+          throw new Error('Cannot access camera stream');
+        }
       }
       
-      await new Promise((resolve) => {
-        if (!videoRef.current) return resolve(null);
+      // Normal path
+      videoRef.current.srcObject = stream;
+      
+      try {
+        await videoRef.current.play();
+        console.log('Video is playing:', !videoRef.current.paused);
         
-        if (videoRef.current.readyState >= 2) {
-          resolve(null);
-        } else {
-          videoRef.current.onloadeddata = () => resolve(null);
-        }
-      });
-      
-      await videoRef.current.play();
-      console.log('Video is playing:', !videoRef.current.paused);
-      
-      codeReader.current.decodeFromVideoDevice(
-        selectedDeviceId,
-        videoRef.current, 
-        (result, error) => {
-          if (result) {
-            const data = result.getText();
-            setScannedData(data);
-            toast.success('QR code scanned successfully!');
+        codeReader.current.decodeFromVideoDevice(
+          undefined, // Let the browser use the active stream
+          videoRef.current, 
+          (result, error) => {
+            if (result) {
+              const data = result.getText();
+              setScannedData(data);
+              toast.success('QR code scanned successfully!');
+              // Don't stop scanning automatically
+            }
+            if (error && !(error instanceof NotFoundException)) {
+              console.error('QR scan error:', error);
+            }
           }
-          if (error && !(error instanceof NotFoundException)) {
-            console.error('QR scan error:', error);
-          }
-        }
-      );
+        );
+        
+        setCameraActive(true);
+      } catch (playError) {
+        console.error('Error playing video:', playError);
+        toast.error('Failed to start video. Please try again.');
+        throw playError;
+      }
       
-      setCameraActive(true);
       setIsScanning(false);
     } catch (error) {
       console.error('Error starting camera:', error);
@@ -270,7 +308,7 @@ const QRScanner: React.FC = () => {
               QR Scanner
             </span>
             <h1 className="text-3xl md:text-4xl font-bold mb-4 animate-slide-up">
-              Scan & Analyze QR Codes
+              Scan &amp; Analyze QR Codes
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto animate-slide-up" style={{ animationDelay: '0.1s' }}>
               Scan QR codes using your camera or upload QR code images to extract and send data to Django backend.
@@ -298,19 +336,21 @@ const QRScanner: React.FC = () => {
                 </TabsList>
                 <TabsContent value="camera" className="pt-6">
                   <div className="bg-muted aspect-video rounded-lg flex items-center justify-center mb-6 overflow-hidden relative">
+                    <video 
+                      ref={videoRef} 
+                      className={`w-full h-full object-cover ${cameraActive ? 'block' : 'hidden'}`}
+                      autoPlay
+                      playsInline
+                      muted
+                    ></video>
+                    
                     {isScanning ? (
                       <div className="text-center">
                         <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
                         <p>Accessing camera...</p>
                       </div>
                     ) : cameraActive ? (
-                      <video 
-                        ref={videoRef} 
-                        className="w-full h-full object-cover"
-                        autoPlay
-                        playsInline
-                        muted
-                      ></video>
+                      <></> /* Video is shown above */
                     ) : scannedData ? (
                       <div className="text-center p-6">
                         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
