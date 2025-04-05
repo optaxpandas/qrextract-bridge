@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -8,8 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Camera, FileUp, Link as LinkIcon, ClipboardCopy, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Import QR code scanner library
-import { BrowserQRCodeReader } from '@zxing/browser';
+import { BrowserQRCodeReader, NotFoundException } from '@zxing/library';
 
 const QRScanner: React.FC = () => {
   const navigate = useNavigate();
@@ -32,7 +30,6 @@ const QRScanner: React.FC = () => {
     }
   }, [navigate]);
 
-  // Clean up video stream when component unmounts
   useEffect(() => {
     return () => {
       if (cameraActive) {
@@ -59,7 +56,6 @@ const QRScanner: React.FC = () => {
     setScannedData(null);
 
     try {
-      // Read QR code from image file
       const imageElement = document.createElement('img');
       imageElement.src = URL.createObjectURL(file);
       
@@ -87,10 +83,8 @@ const QRScanner: React.FC = () => {
     setScannedData(null);
     
     try {
-      // Check if permission already granted
       if (hasPermission === null) {
         try {
-          // Request camera permission
           await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
           setHasPermission(true);
         } catch (err) {
@@ -107,19 +101,32 @@ const QRScanner: React.FC = () => {
         return;
       }
       
-      // Start camera and QR scanning
+      const videoInputDevices = await codeReader.current.getVideoInputDevices();
+      if (videoInputDevices.length === 0) {
+        toast.error('No camera found on this device');
+        setIsScanning(false);
+        return;
+      }
+      
+      let selectedDeviceId = videoInputDevices[0].deviceId;
+      const envCamera = videoInputDevices.find(device => 
+        device.label.toLowerCase().includes('back') || 
+        device.label.toLowerCase().includes('environment')
+      );
+      if (envCamera) {
+        selectedDeviceId = envCamera.deviceId;
+      }
+      
       await codeReader.current.decodeFromVideoDevice(
-        undefined, // Use default camera
+        selectedDeviceId,
         videoRef.current!, 
         (result, error) => {
           if (result) {
             setScannedData(result.getText());
             toast.success('QR code scanned successfully!');
-            codeReader.current.reset();
-            setIsScanning(false);
-            setCameraActive(false);
+            stopCameraScanning();
           }
-          if (error && error?.message !== 'No MultiFormat Readers were able to detect the code.') {
+          if (error && !(error instanceof NotFoundException)) {
             console.error(error);
           }
         }
@@ -150,11 +157,9 @@ const QRScanner: React.FC = () => {
     
     setIsAnalyzing(true);
     
-    // Simulate analysis
     setTimeout(() => {
       setIsAnalyzing(false);
       
-      // Determine what kind of QR code it is
       if (scannedData.startsWith('http')) {
         toast.success('Analysis complete: Web URL detected');
       } else if (scannedData.match(/^[A-Z0-9]{6}$/)) {
