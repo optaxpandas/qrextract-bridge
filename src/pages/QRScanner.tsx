@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -126,14 +125,31 @@ const QRScanner: React.FC = () => {
         stopCameraScanning();
       }
 
-      // Access camera directly first to ensure video element gets populated
+      // IMPORTANT: First stop any existing streams
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+
+      // Get direct access to camera
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined } 
       });
       
+      // Apply stream to video element directly
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(err => console.error('Error playing video:', err));
+        
+        // Make sure the video plays
+        await videoRef.current.play().catch(err => {
+          console.error('Error playing video:', err);
+          throw new Error('Failed to play video stream');
+        });
+        
+        console.log('Video is playing:', !videoRef.current.paused);
+      } else {
+        throw new Error('Video element reference is not available');
       }
       
       // Start QR code detection
@@ -158,18 +174,26 @@ const QRScanner: React.FC = () => {
       console.error('Error starting camera:', error);
       toast.error('Failed to start camera. Please try again.');
       setIsScanning(false);
+      stopCameraScanning(); // Make sure to clean up on error
     }
   };
 
   const stopCameraScanning = () => {
-    if (cameraActive) {
+    try {
       codeReader.current.reset();
+      
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach(track => {
+          track.stop();
+          console.log('Track stopped:', track.kind, track.readyState);
+        });
         videoRef.current.srcObject = null;
       }
+      
       setCameraActive(false);
+    } catch (error) {
+      console.error('Error stopping camera:', error);
     }
   };
 
@@ -252,7 +276,7 @@ const QRScanner: React.FC = () => {
                         autoPlay
                         playsInline
                         muted
-                      />
+                      ></video>
                     ) : scannedData ? (
                       <div className="text-center p-6">
                         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
