@@ -4,10 +4,12 @@ import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Camera, FileUp, Link as LinkIcon, ClipboardCopy, Download, Loader2 } from 'lucide-react';
+import { Camera, FileUp, Link as LinkIcon, ClipboardCopy, Download, Loader2, QrCode } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { BrowserQRCodeReader, NotFoundException } from '@zxing/library';
+
+const BACKEND_API_URL = 'http://localhost:8000/api/qrdata/';
 
 const QRScanner: React.FC = () => {
   const navigate = useNavigate();
@@ -15,6 +17,7 @@ const QRScanner: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReader = useRef(new BrowserQRCodeReader());
@@ -60,7 +63,8 @@ const QRScanner: React.FC = () => {
       });
       
       const result = await codeReader.current.decodeFromImageElement(imageElement);
-      setScannedData(result.getText());
+      const data = result.getText();
+      setScannedData(data);
       toast.success('QR code scanned successfully!');
     } catch (error) {
       console.error('Error scanning QR code:', error);
@@ -97,7 +101,6 @@ const QRScanner: React.FC = () => {
         return;
       }
       
-      // Get available cameras
       const videoInputDevices = await codeReader.current.getVideoInputDevices();
       console.log('Available cameras:', videoInputDevices);
       
@@ -107,7 +110,6 @@ const QRScanner: React.FC = () => {
         return;
       }
       
-      // Prefer environment/back camera if available
       let selectedDeviceId = videoInputDevices[0].deviceId;
       const envCamera = videoInputDevices.find(device => 
         device.label.toLowerCase().includes('back') || 
@@ -120,47 +122,46 @@ const QRScanner: React.FC = () => {
       
       console.log('Using camera device ID:', selectedDeviceId);
       
-      // Reset previous instances
       if (cameraActive) {
         stopCameraScanning();
       }
 
-      // IMPORTANT: First stop any existing streams
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
         videoRef.current.srcObject = null;
       }
 
-      // Get direct access to camera
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined } 
       });
       
-      // Apply stream to video element directly
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        
-        // Make sure the video plays
-        await videoRef.current.play().catch(err => {
-          console.error('Error playing video:', err);
-          throw new Error('Failed to play video stream');
-        });
-        
-        console.log('Video is playing:', !videoRef.current.paused);
-      } else {
+      if (!videoRef.current) {
+        console.error('Video element reference is still not available');
         throw new Error('Video element reference is not available');
       }
       
-      // Start QR code detection
-      await codeReader.current.decodeFromVideoDevice(
+      await new Promise((resolve) => {
+        if (!videoRef.current) return resolve(null);
+        
+        if (videoRef.current.readyState >= 2) {
+          resolve(null);
+        } else {
+          videoRef.current.onloadeddata = () => resolve(null);
+        }
+      });
+      
+      await videoRef.current.play();
+      console.log('Video is playing:', !videoRef.current.paused);
+      
+      codeReader.current.decodeFromVideoDevice(
         selectedDeviceId,
-        videoRef.current!, 
+        videoRef.current, 
         (result, error) => {
           if (result) {
-            setScannedData(result.getText());
+            const data = result.getText();
+            setScannedData(data);
             toast.success('QR code scanned successfully!');
-            stopCameraScanning();
           }
           if (error && !(error instanceof NotFoundException)) {
             console.error('QR scan error:', error);
@@ -174,7 +175,7 @@ const QRScanner: React.FC = () => {
       console.error('Error starting camera:', error);
       toast.error('Failed to start camera. Please try again.');
       setIsScanning(false);
-      stopCameraScanning(); // Make sure to clean up on error
+      stopCameraScanning();
     }
   };
 
@@ -226,6 +227,39 @@ const QRScanner: React.FC = () => {
     toast.success('Copied to clipboard!');
   };
 
+  const sendToBackend = async () => {
+    if (!scannedData) return;
+    
+    setIsSending(true);
+    
+    try {
+      const response = await fetch(BACKEND_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: scannedData,
+          timestamp: new Date().toISOString(),
+          device_info: navigator.userAgent
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      
+      const result = await response.json();
+      toast.success('Data sent to backend successfully!');
+      console.log('Backend response:', result);
+    } catch (error) {
+      console.error('Error sending data to backend:', error);
+      toast.error('Failed to send data to backend. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   return (
     <>
       <Navbar isLoggedIn onLogout={handleLogout} />
@@ -239,7 +273,7 @@ const QRScanner: React.FC = () => {
               Scan & Analyze QR Codes
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              Scan QR codes using your camera or upload QR code images to extract and analyze data.
+              Scan QR codes using your camera or upload QR code images to extract and send data to Django backend.
             </p>
           </div>
 
@@ -286,7 +320,7 @@ const QRScanner: React.FC = () => {
                       </div>
                     ) : (
                       <div className="text-center">
-                        <Camera className="h-16 w-16 mx-auto mb-2 text-muted-foreground opacity-50" />
+                        <QrCode className="h-16 w-16 mx-auto mb-2 text-muted-foreground opacity-50" />
                         <p className="text-muted-foreground">Camera feed will appear here</p>
                       </div>
                     )}
@@ -380,13 +414,17 @@ const QRScanner: React.FC = () => {
                       <ClipboardCopy size={16} className="mr-2" />
                       Copy
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => {
-                      if (scannedData.startsWith('http')) {
-                        window.open(scannedData, '_blank');
-                      } else {
-                        toast.info('This content cannot be downloaded directly');
-                      }
-                    }}>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => {
+                        if (scannedData.startsWith('http')) {
+                          window.open(scannedData, '_blank');
+                        } else {
+                          toast.info('This content cannot be downloaded directly');
+                        }
+                      }}
+                    >
                       <Download size={16} className="mr-2" />
                       Download/Open
                     </Button>
@@ -402,6 +440,21 @@ const QRScanner: React.FC = () => {
                         </>
                       ) : (
                         <>Analyze Data</>
+                      )}
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="secondary"
+                      onClick={sendToBackend}
+                      disabled={isSending}
+                    >
+                      {isSending ? (
+                        <>
+                          <Loader2 size={16} className="mr-2 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>Send to Backend</>
                       )}
                     </Button>
                   </div>
