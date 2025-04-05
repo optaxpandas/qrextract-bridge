@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
@@ -7,6 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Camera, FileUp, Link as LinkIcon, ClipboardCopy, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Import QR code scanner library
+import { BrowserQRCodeReader } from '@zxing/browser';
+
 const QRScanner: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('camera');
@@ -14,6 +18,10 @@ const QRScanner: React.FC = () => {
   const [scannedData, setScannedData] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const codeReader = useRef(new BrowserQRCodeReader());
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
 
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
@@ -24,39 +32,117 @@ const QRScanner: React.FC = () => {
     }
   }, [navigate]);
 
+  // Clean up video stream when component unmounts
+  useEffect(() => {
+    return () => {
+      if (cameraActive) {
+        codeReader.current.reset();
+        if (videoRef.current && videoRef.current.srcObject) {
+          const stream = videoRef.current.srcObject as MediaStream;
+          stream.getTracks().forEach(track => track.stop());
+        }
+      }
+    };
+  }, [cameraActive]);
+
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
     toast.success('Logged out successfully');
     navigate('/login');
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsScanning(true);
     setScannedData(null);
 
-    setTimeout(() => {
-      setIsScanning(false);
-      setScannedData('https://example.com/product-123456');
+    try {
+      // Read QR code from image file
+      const imageElement = document.createElement('img');
+      imageElement.src = URL.createObjectURL(file);
+      
+      await new Promise((resolve) => {
+        imageElement.onload = resolve;
+      });
+      
+      const result = await codeReader.current.decodeFromImageElement(imageElement);
+      setScannedData(result.getText());
       toast.success('QR code scanned successfully!');
-    }, 2000);
+    } catch (error) {
+      console.error('Error scanning QR code:', error);
+      toast.error('Failed to scan QR code. Please try again with a clearer image.');
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const triggerFileInput = () => {
     fileInputRef.current?.click();
   };
 
-  const startCameraScanning = () => {
+  const startCameraScanning = async () => {
     setIsScanning(true);
     setScannedData(null);
-
-    setTimeout(() => {
+    
+    try {
+      // Check if permission already granted
+      if (hasPermission === null) {
+        try {
+          // Request camera permission
+          await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          setHasPermission(true);
+        } catch (err) {
+          setHasPermission(false);
+          toast.error('Camera permission denied. Please allow camera access to scan QR codes.');
+          setIsScanning(false);
+          return;
+        }
+      }
+      
+      if (hasPermission === false) {
+        toast.error('Camera permission denied. Please allow camera access to scan QR codes.');
+        setIsScanning(false);
+        return;
+      }
+      
+      // Start camera and QR scanning
+      await codeReader.current.decodeFromVideoDevice(
+        undefined, // Use default camera
+        videoRef.current!, 
+        (result, error) => {
+          if (result) {
+            setScannedData(result.getText());
+            toast.success('QR code scanned successfully!');
+            codeReader.current.reset();
+            setIsScanning(false);
+            setCameraActive(false);
+          }
+          if (error && error?.message !== 'No MultiFormat Readers were able to detect the code.') {
+            console.error(error);
+          }
+        }
+      );
+      
+      setCameraActive(true);
+    } catch (error) {
+      console.error('Error starting camera:', error);
+      toast.error('Failed to start camera. Please try again.');
+    } finally {
       setIsScanning(false);
-      setScannedData('https://example.com/qr-scanner-demo');
-      toast.success('QR code scanned successfully!');
-    }, 3000);
+    }
+  };
+
+  const stopCameraScanning = () => {
+    if (cameraActive) {
+      codeReader.current.reset();
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+      setCameraActive(false);
+    }
   };
 
   const analyzeData = () => {
@@ -64,9 +150,22 @@ const QRScanner: React.FC = () => {
     
     setIsAnalyzing(true);
     
+    // Simulate analysis
     setTimeout(() => {
       setIsAnalyzing(false);
-      toast.success('Data analyzed successfully!');
+      
+      // Determine what kind of QR code it is
+      if (scannedData.startsWith('http')) {
+        toast.success('Analysis complete: Web URL detected');
+      } else if (scannedData.match(/^[A-Z0-9]{6}$/)) {
+        toast.success('Analysis complete: Verification code detected');
+      } else if (scannedData.includes('@')) {
+        toast.success('Analysis complete: Email address detected');
+      } else if (scannedData.match(/^\+?[0-9\s\-\(\)]{10,}$/)) {
+        toast.success('Analysis complete: Phone number detected');
+      } else {
+        toast.success('Analysis complete: Plain text data');
+      }
     }, 2000);
   };
 
@@ -114,12 +213,20 @@ const QRScanner: React.FC = () => {
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="camera" className="pt-6">
-                  <div className="bg-muted aspect-video rounded-lg flex items-center justify-center mb-6">
+                  <div className="bg-muted aspect-video rounded-lg flex items-center justify-center mb-6 overflow-hidden relative">
                     {isScanning ? (
                       <div className="text-center">
                         <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
                         <p>Accessing camera...</p>
                       </div>
+                    ) : cameraActive ? (
+                      <video 
+                        ref={videoRef} 
+                        className="w-full h-full object-cover"
+                        autoPlay
+                        muted
+                        playsInline
+                      />
                     ) : scannedData ? (
                       <div className="text-center p-6">
                         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
@@ -134,20 +241,30 @@ const QRScanner: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <Button 
-                    onClick={startCameraScanning} 
-                    disabled={isScanning} 
-                    className="w-full"
-                  >
-                    {isScanning ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Scanning...
-                      </>
-                    ) : (
-                      <>Start Camera Scan</>
-                    )}
-                  </Button>
+                  {cameraActive ? (
+                    <Button 
+                      onClick={stopCameraScanning} 
+                      variant="destructive"
+                      className="w-full"
+                    >
+                      Stop Camera
+                    </Button>
+                  ) : (
+                    <Button 
+                      onClick={startCameraScanning} 
+                      disabled={isScanning} 
+                      className="w-full"
+                    >
+                      {isScanning ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Scanning...
+                        </>
+                      ) : (
+                        <>Start Camera Scan</>
+                      )}
+                    </Button>
+                  )}
                 </TabsContent>
                 <TabsContent value="upload" className="pt-6">
                   <div 
@@ -213,9 +330,15 @@ const QRScanner: React.FC = () => {
                       <ClipboardCopy size={16} className="mr-2" />
                       Copy
                     </Button>
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" onClick={() => {
+                      if (scannedData.startsWith('http')) {
+                        window.open(scannedData, '_blank');
+                      } else {
+                        toast.info('This content cannot be downloaded directly');
+                      }
+                    }}>
                       <Download size={16} className="mr-2" />
-                      Download
+                      Download/Open
                     </Button>
                     <Button 
                       size="sm" 

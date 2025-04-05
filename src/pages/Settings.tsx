@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -11,9 +11,137 @@ import {
 } from "@/components/ui/toggle-group";
 import Navbar from '@/components/Navbar';
 import { Palette, Bell, Shield, Monitor, Moon, Sun, LayoutGrid } from 'lucide-react';
+import { toast } from "sonner";
 
 const Settings = () => {
+  // Theme settings
   const [theme, setTheme] = useState("light");
+  const [layoutDensity, setLayoutDensity] = useState("comfortable");
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [reducedData, setReducedData] = useState(false);
+  const [showGrid, setShowGrid] = useState(true);
+  const [accentColor, setAccentColor] = useState("violet");
+  
+  // Notification settings
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(true);
+  const [marketingEmails, setMarketingEmails] = useState(false);
+  
+  // Privacy settings
+  const [activityStatus, setActivityStatus] = useState(true);
+  const [dataCollection, setDataCollection] = useState(true);
+  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
+  
+  // Apply theme changes when theme state changes
+  useEffect(() => {
+    const root = window.document.documentElement;
+    
+    // Remove existing theme classes
+    root.classList.remove('light', 'dark');
+    
+    // Apply selected theme
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+  }, [theme]);
+  
+  // Save settings handler
+  const saveAppearanceSettings = () => {
+    localStorage.setItem('theme', theme);
+    localStorage.setItem('layoutDensity', layoutDensity);
+    localStorage.setItem('reduceMotion', reduceMotion.toString());
+    localStorage.setItem('reducedData', reducedData.toString());
+    localStorage.setItem('showGrid', showGrid.toString());
+    localStorage.setItem('accentColor', accentColor);
+    
+    toast.success("Appearance settings saved");
+  };
+  
+  const saveNotificationSettings = () => {
+    localStorage.setItem('emailNotifications', emailNotifications.toString());
+    localStorage.setItem('pushNotifications', pushNotifications.toString());
+    localStorage.setItem('marketingEmails', marketingEmails.toString());
+    
+    toast.success("Notification settings saved");
+  };
+  
+  const savePrivacySettings = () => {
+    localStorage.setItem('activityStatus', activityStatus.toString());
+    localStorage.setItem('dataCollection', dataCollection.toString());
+    localStorage.setItem('twoFactorAuth', twoFactorAuth.toString());
+    
+    toast.success("Privacy settings saved");
+  };
+  
+  // Load saved settings on component mount
+  useEffect(() => {
+    // Load theme settings
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) setTheme(savedTheme);
+    
+    const savedLayoutDensity = localStorage.getItem('layoutDensity');
+    if (savedLayoutDensity) setLayoutDensity(savedLayoutDensity);
+    
+    const savedReduceMotion = localStorage.getItem('reduceMotion');
+    if (savedReduceMotion) setReduceMotion(savedReduceMotion === 'true');
+    
+    const savedReducedData = localStorage.getItem('reducedData');
+    if (savedReducedData) setReducedData(savedReducedData === 'true');
+    
+    const savedShowGrid = localStorage.getItem('showGrid');
+    if (savedShowGrid) setShowGrid(savedShowGrid === 'true');
+    
+    const savedAccentColor = localStorage.getItem('accentColor');
+    if (savedAccentColor) setAccentColor(savedAccentColor);
+    
+    // Load notification settings
+    const savedEmailNotifications = localStorage.getItem('emailNotifications');
+    if (savedEmailNotifications) setEmailNotifications(savedEmailNotifications === 'true');
+    
+    const savedPushNotifications = localStorage.getItem('pushNotifications');
+    if (savedPushNotifications) setPushNotifications(savedPushNotifications === 'true');
+    
+    const savedMarketingEmails = localStorage.getItem('marketingEmails');
+    if (savedMarketingEmails) setMarketingEmails(savedMarketingEmails === 'true');
+    
+    // Load privacy settings
+    const savedActivityStatus = localStorage.getItem('activityStatus');
+    if (savedActivityStatus) setActivityStatus(savedActivityStatus === 'true');
+    
+    const savedDataCollection = localStorage.getItem('dataCollection');
+    if (savedDataCollection) setDataCollection(savedDataCollection === 'true');
+    
+    const savedTwoFactorAuth = localStorage.getItem('twoFactorAuth');
+    if (savedTwoFactorAuth) setTwoFactorAuth(savedTwoFactorAuth === 'true');
+  }, []);
+  
+  // Reset handlers
+  const resetAppearanceSettings = () => {
+    setTheme('light');
+    setLayoutDensity('comfortable');
+    setReduceMotion(false);
+    setReducedData(false);
+    setShowGrid(true);
+    setAccentColor('violet');
+    toast.info("Appearance settings reset to default");
+  };
+  
+  const resetNotificationSettings = () => {
+    setEmailNotifications(true);
+    setPushNotifications(true);
+    setMarketingEmails(false);
+    toast.info("Notification settings reset to default");
+  };
+  
+  const resetPrivacySettings = () => {
+    setActivityStatus(true);
+    setDataCollection(true);
+    setTwoFactorAuth(false);
+    toast.info("Privacy settings reset to default");
+  };
   
   return (
     <div className="min-h-screen bg-background">
@@ -73,7 +201,7 @@ const Settings = () => {
                 {/* Layout Density */}
                 <div className="space-y-3">
                   <Label>Layout Density</Label>
-                  <ToggleGroup type="single" defaultValue="comfortable">
+                  <ToggleGroup type="single" value={layoutDensity} onValueChange={(value) => value && setLayoutDensity(value)}>
                     <ToggleGroupItem value="compact" aria-label="Compact layout">
                       Compact
                     </ToggleGroupItem>
@@ -97,7 +225,7 @@ const Settings = () => {
                           Minimize animation effects
                         </p>
                       </div>
-                      <Switch id="reduce-motion" />
+                      <Switch id="reduce-motion" checked={reduceMotion} onCheckedChange={setReduceMotion} />
                     </div>
                     
                     <div className="flex items-center justify-between">
@@ -107,7 +235,7 @@ const Settings = () => {
                           Lower resolution images and content
                         </p>
                       </div>
-                      <Switch id="reduced-data" />
+                      <Switch id="reduced-data" checked={reducedData} onCheckedChange={setReducedData} />
                     </div>
                     
                     <div className="flex items-center justify-between">
@@ -117,7 +245,7 @@ const Settings = () => {
                           Display grid lines in table views
                         </p>
                       </div>
-                      <Switch id="show-grid" defaultChecked />
+                      <Switch id="show-grid" checked={showGrid} onCheckedChange={setShowGrid} />
                     </div>
                   </div>
                 </div>
@@ -129,16 +257,17 @@ const Settings = () => {
                     {["violet", "blue", "green", "yellow", "orange", "red", "pink"].map((color) => (
                       <button
                         key={color}
-                        className={`w-8 h-8 rounded-full bg-${color}-500 hover:ring-2 hover:ring-offset-2 ring-offset-background ${color === 'violet' ? 'ring-2 ring-offset-2' : ''}`}
+                        className={`w-8 h-8 rounded-full bg-${color}-500 hover:ring-2 hover:ring-offset-2 ring-offset-background ${color === accentColor ? 'ring-2 ring-offset-2' : ''}`}
                         aria-label={`${color} accent color`}
+                        onClick={() => setAccentColor(color)}
                       />
                     ))}
                   </div>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end gap-2">
-                <Button variant="outline">Reset to Default</Button>
-                <Button>Save Changes</Button>
+                <Button variant="outline" onClick={resetAppearanceSettings}>Reset to Default</Button>
+                <Button onClick={saveAppearanceSettings}>Save Changes</Button>
               </CardFooter>
             </Card>
           </TabsContent>
@@ -161,7 +290,7 @@ const Settings = () => {
                         Receive updates via email
                       </p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
                   </div>
                   
                   <div className="flex items-center justify-between">
@@ -171,7 +300,7 @@ const Settings = () => {
                         Receive alerts on your device
                       </p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch checked={pushNotifications} onCheckedChange={setPushNotifications} />
                   </div>
                   
                   <div className="flex items-center justify-between">
@@ -181,13 +310,13 @@ const Settings = () => {
                         Receive marketing and promotional emails
                       </p>
                     </div>
-                    <Switch />
+                    <Switch checked={marketingEmails} onCheckedChange={setMarketingEmails} />
                   </div>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end gap-2">
-                <Button variant="outline">Reset to Default</Button>
-                <Button>Save Changes</Button>
+                <Button variant="outline" onClick={resetNotificationSettings}>Reset to Default</Button>
+                <Button onClick={saveNotificationSettings}>Save Changes</Button>
               </CardFooter>
             </Card>
           </TabsContent>
@@ -210,7 +339,7 @@ const Settings = () => {
                         Show when you're active on the platform
                       </p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch checked={activityStatus} onCheckedChange={setActivityStatus} />
                   </div>
                   
                   <div className="flex items-center justify-between">
@@ -220,7 +349,7 @@ const Settings = () => {
                         Allow anonymous usage data collection
                       </p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch checked={dataCollection} onCheckedChange={setDataCollection} />
                   </div>
                   
                   <div className="flex items-center justify-between">
@@ -230,13 +359,13 @@ const Settings = () => {
                         Add an extra layer of security to your account
                       </p>
                     </div>
-                    <Switch />
+                    <Switch checked={twoFactorAuth} onCheckedChange={setTwoFactorAuth} />
                   </div>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end gap-2">
-                <Button variant="outline">Reset to Default</Button>
-                <Button>Save Changes</Button>
+                <Button variant="outline" onClick={resetPrivacySettings}>Reset to Default</Button>
+                <Button onClick={savePrivacySettings}>Save Changes</Button>
               </CardFooter>
             </Card>
           </TabsContent>
