@@ -7,17 +7,33 @@ import { toast } from 'sonner';
 const Signup: React.FC = () => {
   const navigate = useNavigate();
 
-  const handleSignup = (data: any) => {
-    console.log('Signup data:', data);
-    
-    // Here you would make API call to Django backend
-    // For now, we'll just simulate a successful signup
-    toast.success('Account created successfully! Redirecting to login...');
-    
-    // Redirect to login page
-    setTimeout(() => {
-      navigate('/login');
-    }, 1500);
+  const handleSignup = async (data: any) => {
+    try {
+      const response = await fetch("http://9.169.249.118:8000/sign-up", {
+        method: "POST",
+        mode: "cors", // Added to handle CORS
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error("Signup failed");
+      }
+
+      toast.success("Account created successfully! Redirecting to login...");
+      setTimeout(() => {
+        navigate("/login");
+      }, 1500);
+    } catch (error) {
+      console.error("Signup error:", error);
+      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+        toast.error("Unable to connect to the server. Please check your network or contact support.");
+      } else {
+        toast.error("An error occurred during signup. Please try again.");
+      }
+    }
   };
 
   return (

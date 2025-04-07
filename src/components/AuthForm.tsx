@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -53,16 +52,12 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, onSubmit }) => {
 
   const handleSubmit = async (data: LoginFormValues | SignupFormValues) => {
     setIsLoading(true);
-    
+
     try {
-      // This would be replaced with actual API call to Django backend
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      onSubmit(data);
-      
-      toast.success(type === 'login' ? 'Login successful!' : 'Account created successfully!');
+      await onSubmit(data);
     } catch (error) {
       console.error(error);
-      toast.error('An error occurred. Please try again.');
+      toast.error("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
