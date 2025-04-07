@@ -9,7 +9,7 @@ const Login: React.FC = () => {
 
   const handleLogin = async (data: any) => {
     try {
-      const response = await fetch("http://9.169.249.118:8000/sign-in", {
+      const response = await fetch("https://9.169.249.118:8000/sign-in", {
         method: "POST",
         mode: "cors", // Added to handle CORS
         headers: {
