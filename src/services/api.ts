@@ -1,7 +1,7 @@
 
 import { toast } from 'sonner';
 
-const API_URL = 'http://127.0.0.1:8000';
+const API_URL = 'http://9.169.249.118:8000';
 
 // Get the authentication token from localStorage
 const getToken = () => localStorage.getItem('token');

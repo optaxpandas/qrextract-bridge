@@ -10,7 +10,7 @@ const Signup: React.FC = () => {
 
   const handleSignup = async (data: any) => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/sign-up", {
+      const response = await fetch("http://9.169.249.118:8000/sign-up", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
