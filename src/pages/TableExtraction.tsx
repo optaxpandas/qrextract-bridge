@@ -6,6 +6,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { FileUp, Table as TableIcon, Download, FileJson, FileSpreadsheet, ClipboardCopy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { BlobServiceClient } from '@azure/storage-blob';
+import axios from 'axios';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 interface TableData {
   id: number;
@@ -13,6 +17,10 @@ interface TableData {
   price: string;
   stock: number;
 }
+
+const SAS = "https://scanlytic.blob.core.windows.net/scanlytic-blob?sp=racw&st=2025-03-24T15:56:56Z&se=2025-06-29T23:56:56Z&sv=2024-11-04&sr=c&sig=iYgL2Ca7pMUToWEvbtmOptRqV4sGipq1Uezj3ZR0KMA%3D"
+const CONTAINER_NAME = 'scanlytic-blob';
+const AZURE_STORAGE_CONNECTION_STRING = 'DefaultEndpointsProtocol=https;AccountName=scanlytic;AccountKey=Y9YvPKMssaaguGyktTdKOR+JlX/j4AqZ/4PDsQKRWC24F0fPP/qqwsv3BlnU2prxqeJbfwQXEIHM+AStMjCCJg==;EndpointSuffix=core.windows.net';
 
 const TableExtraction: React.FC = () => {
   const navigate = useNavigate();
@@ -55,25 +63,69 @@ const TableExtraction: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  const extractData = () => {
-    if (!uploadedFile) return;
-    
-    setIsExtracting(true);
-    
-    setTimeout(() => {
-      const data: TableData[] = [
-        { id: 1, product: 'Laptop', price: '$1299', stock: 45 },
-        { id: 2, product: 'Smartphone', price: '$899', stock: 120 },
-        { id: 3, product: 'Headphones', price: '$199', stock: 78 },
-        { id: 4, product: 'Monitor', price: '$349', stock: 32 },
-        { id: 5, product: 'Keyboard', price: '$129', stock: 56 }
-      ];
-      
-      setExtractedData(data);
-      setIsExtracting(false);
-      toast.success('Table data extracted successfully!');
-    }, 3000);
-  };
+const extractData = async () => {
+  if (!uploadedFile) return;
+  setIsExtracting(true);
+
+  try {
+    const blobServiceClient = new BlobServiceClient(SAS);
+    const containerClient = blobServiceClient.getContainerClient(CONTAINER_NAME);
+
+    const blobClient = containerClient.getBlockBlobClient(uploadedFile.name);
+
+    await blobClient.uploadBrowserData(uploadedFile, {
+      blobHTTPHeaders: {
+        blobContentType: uploadedFile.type,
+      },
+    });
+
+    const blobUrl = blobClient.url;
+
+    // Call your backend API
+    const response = await axios.post(
+      'http://9.169.249.118:8000/table',
+      {
+        image_url: blobUrl,
+        file_name: uploadedFile.name,
+        format: 'csv',
+      },
+      {
+        headers: {
+          Authorization: `Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc1Mzg0Njc2LCJpYXQiOjE3NDM4NDg2NzYsImp0aSI6IjY2YWIwZTI3MDIxZDRmNmQ5NTc2MGYwNGQ2NGRhNjc2IiwidXNlcl9pZCI6IjgxMjAyMjhmLWRkMDktNDNjMi1hZDk2LTcxZWYwNDAyODVlZSJ9.xFL7eYEF6Ue-rkJXoOaYdN43B_EGIO2Bm8EEQT8ucxU`,
+        },
+      }
+    );
+
+    console.log(response.data.data)
+
+    const { content, fileName } = response.data.data;
+
+    // Trigger download
+    const fileRes = await fetch(content);
+    const blob = await fileRes.blob();
+
+    if (fileName.endsWith('.csv')) {
+      const text = await blob.text();
+      const parsed = Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+      });
+      setExtractedData(parsed.data as TableData[]);
+    } else if (fileName.endsWith('.xlsx')) {
+      const arrayBuffer = await blob.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json<TableData>(sheet);
+      setExtractedData(jsonData);
+    }
+  } catch (error) {
+    console.error("Upload/API error:", error);
+    toast.error("Something went wrong during upload or extraction.");
+  } finally {
+    setIsExtracting(false);
+  }
+};
 
   const downloadJSON = () => {
     if (!extractedData) return;
