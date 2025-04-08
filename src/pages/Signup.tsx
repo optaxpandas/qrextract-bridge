@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthForm from '@/components/AuthForm';
@@ -9,9 +10,8 @@ const Signup: React.FC = () => {
 
   const handleSignup = async (data: any) => {
     try {
-      const response = await fetch("https://9.169.249.118:8000/sign-up", {
+      const response = await fetch("http://127.0.0.1:8000/sign-up", {
         method: "POST",
-        mode: "cors", // Added to handle CORS
         headers: {
           "Content-Type": "application/json",
         },

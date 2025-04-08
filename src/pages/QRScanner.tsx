@@ -4,12 +4,10 @@ import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Camera, FileUp, Link as LinkIcon, ClipboardCopy, Download, Loader2, QrCode } from 'lucide-react';
+import { Camera, FileUp, Link as LinkIcon, ClipboardCopy, Download, Loader2, QrCode, SendHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
-
 import { BrowserQRCodeReader, NotFoundException } from '@zxing/library';
-
-const BACKEND_API_URL = 'http://localhost:8000/api/qrdata/';
+import { qrApi, handleApiError } from '@/services/api';
 
 const QRScanner: React.FC = () => {
   const navigate = useNavigate();
@@ -24,6 +22,7 @@ const QRScanner: React.FC = () => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
@@ -34,8 +33,14 @@ const QRScanner: React.FC = () => {
     }
   }, [navigate]);
 
+  // Cleanup function to stop all tracks when component unmounts
   useEffect(() => {
     return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop();
+        });
+      }
       if (cameraActive) {
         stopCameraScanning();
       }
@@ -44,6 +49,7 @@ const QRScanner: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('token');
     toast.success('Logged out successfully');
     navigate('/login');
   };
@@ -108,95 +114,32 @@ const QRScanner: React.FC = () => {
     
     try {
       // First check if we already have permission
-      if (hasPermission === null) {
-        try {
-          await navigator.mediaDevices.getUserMedia({ video: true });
-          setHasPermission(true);
-        } catch (err) {
-          setHasPermission(false);
-          toast.error('Camera permission denied. Please allow camera access to scan QR codes.');
-          setIsScanning(false);
-          return;
-        }
-      }
-      
-      if (hasPermission === false) {
-        toast.error('Camera permission denied. Please allow camera access to scan QR codes.');
-        setIsScanning(false);
-        return;
-      }
-      
-      // Stop existing camera if active
-      if (cameraActive) {
-        stopCameraScanning();
-      }
-
-      // Get available cameras
-      let videoDevices = [];
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        videoDevices = devices.filter(device => device.kind === 'videoinput');
-        console.log('Available cameras:', videoDevices);
-      } catch (err) {
-        console.error('Error getting video devices:', err);
-        // Continue with default camera
-      }
-      
-      if (videoDevices.length === 0) {
-        console.warn('No cameras detected via enumerateDevices, trying default camera');
-      }
-      
-      // Get camera stream directly without ZXing's method
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
+        const stream = await navigator.mediaDevices.getUserMedia({ 
           video: { facingMode: "environment" } 
         });
-      } catch (err) {
-        console.error('Failed to access environment camera, trying default:', err);
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        } catch (err2) {
-          console.error('Failed to access any camera:', err2);
-          toast.error('Could not access camera. Please check camera permissions.');
-          setIsScanning(false);
-          return;
-        }
-      }
-      
-      // Allow time for the DOM to update
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Try to attach stream to video element
-      if (!videoRef.current) {
-        console.warn('Video element reference is not available, using fallback');
         
-        // Fallback solution with a programmatically created video element
-        const tempVideo = document.createElement('video');
-        tempVideo.autoplay = true;
-        tempVideo.playsInline = true;
-        tempVideo.muted = true;
-        tempVideo.srcObject = stream;
+        // Save the stream to make it easier to clean up later
+        streamRef.current = stream;
+        setHasPermission(true);
         
-        try {
-          await tempVideo.play();
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(err => {
+              console.error("Error playing video:", err);
+              toast.error("Failed to start video stream");
+            });
+          };
           
-          // Use the temp video for QR scanning
-          codeReader.current.decodeFromVideoElement(tempVideo, (result, error) => {
+          // Start QR code detection
+          codeReader.current.decodeFromStream(stream, videoRef.current, (result, error) => {
             if (result) {
               const data = result.getText();
               setScannedData(data);
               
-              // Attempt to capture frame from the temp video
-              const canvas = document.createElement('canvas');
-              canvas.width = tempVideo.videoWidth;
-              canvas.height = tempVideo.videoHeight;
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
-                const imageDataUrl = canvas.toDataURL('image/jpeg');
-                setCapturedImage(imageDataUrl);
-              }
+              // Capture frame when QR code is detected
+              captureVideoFrame();
               
               toast.success('QR code scanned successfully!');
             }
@@ -206,56 +149,19 @@ const QRScanner: React.FC = () => {
           });
           
           setCameraActive(true);
-          setIsScanning(false);
-          return;
-        } catch (err) {
-          console.error('Fallback video failed:', err);
-          throw new Error('Cannot access camera stream');
+        } else {
+          throw new Error("Video element reference not available");
         }
+      } catch (err) {
+        console.error("Camera access error:", err);
+        setHasPermission(false);
+        toast.error('Camera permission denied. Please allow camera access to scan QR codes.');
       }
-      
-      // Normal path
-      videoRef.current.srcObject = stream;
-      
-      try {
-        await videoRef.current.play();
-        console.log('Video is playing:', !videoRef.current.paused);
-        
-        codeReader.current.decodeFromVideoDevice(
-          undefined, // Let the browser use the active stream
-          videoRef.current, 
-          (result, error) => {
-            if (result) {
-              const data = result.getText();
-              setScannedData(data);
-              
-              // Capture frame when QR code is detected if not already captured
-              if (videoRef.current && !capturedImage) {
-                captureVideoFrame();
-              }
-              
-              toast.success('QR code scanned successfully!');
-              // Don't stop scanning automatically
-            }
-            if (error && !(error instanceof NotFoundException)) {
-              console.error('QR scan error:', error);
-            }
-          }
-        );
-        
-        setCameraActive(true);
-      } catch (playError) {
-        console.error('Error playing video:', playError);
-        toast.error('Failed to start video. Please try again.');
-        throw playError;
-      }
-      
-      setIsScanning(false);
     } catch (error) {
       console.error('Error starting camera:', error);
       toast.error('Failed to start camera. Please try again.');
+    } finally {
       setIsScanning(false);
-      stopCameraScanning();
     }
   };
 
@@ -263,12 +169,14 @@ const QRScanner: React.FC = () => {
     try {
       codeReader.current.reset();
       
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
           track.stop();
-          console.log('Track stopped:', track.kind, track.readyState);
         });
+        streamRef.current = null;
+      }
+      
+      if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
       
@@ -313,32 +221,26 @@ const QRScanner: React.FC = () => {
     setIsSending(true);
     
     try {
-      const response = await fetch(BACKEND_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          data: scannedData,
-          timestamp: new Date().toISOString(),
-          device_info: navigator.userAgent,
-          image: capturedImage // Including the captured image
-        }),
+      await qrApi.sendQRData({
+        data: scannedData,
+        timestamp: new Date().toISOString(),
+        device_info: navigator.userAgent,
+        image: capturedImage // Including the captured image
       });
       
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-      
-      const result = await response.json();
       toast.success('Data and image sent to backend successfully!');
-      console.log('Backend response:', result);
+      
+      // Navigate to QR analysis report page if needed
+      // navigate('/qr-analysis-report', { state: { analysisData: response.data } });
     } catch (error) {
-      console.error('Error sending data to backend:', error);
-      toast.error('Failed to send data to backend. Please try again.');
+      handleApiError(error);
     } finally {
       setIsSending(false);
     }
+  };
+
+  const viewQRHistory = () => {
+    navigate('/qr-history');
   };
 
   return (

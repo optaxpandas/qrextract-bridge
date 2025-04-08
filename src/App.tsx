@@ -14,6 +14,9 @@ import TableExtraction from "./pages/TableExtraction";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import QRHistory from "./pages/QRHistory";
+import TableHistory from "./pages/TableHistory";
+import QRAnalysisReport from "./pages/QRAnalysisReport";
 
 const queryClient = new QueryClient();
 
@@ -47,7 +50,10 @@ const App = () => {
             <Route path="/signup" element={<Signup />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/qr-scanner" element={<QRScanner />} />
+            <Route path="/qr-history" element={<QRHistory />} />
+            <Route path="/qr-analysis-report/:id" element={<QRAnalysisReport />} />
             <Route path="/table-extraction" element={<TableExtraction />} />
+            <Route path="/table-history" element={<TableHistory />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
